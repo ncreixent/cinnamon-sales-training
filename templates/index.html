@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cinnamon Case Sales Training</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        #chat-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 5px;
+        }
+        .buyer {
+            background-color: #f1f1f1;
+            margin-right: 30%;
+        }
+        .seller {
+            background-color: #d1e7ff;
+            margin-left: 30%;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">Cinnamon Case Sales Training</h1>
+        
+        <div id="intro-container">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Sales Negotiation Simulation</h2>
+                </div>
+                <div class="card-body">
+                    <p>You are the seller (Mahek Masala) with 1,000 kg of premium-quality cinnamon.</p>
+                    <p>Your cost is Rs. 360 per kg. Anything above this is profit.</p>
+                    <p>The AI will play the buyer (Offshoot Intermediaries Limited).</p>
+                    <button id="start-btn" class="btn btn-primary">Start Negotiation</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="negotiation-container" style="display: none;">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between">
+                    <h2 class="h5 mb-0">Negotiation</h2>
+                    <button id="conclude-btn" class="btn btn-success btn-sm">Conclude Deal</button>
+                </div>
+                <div class="card-body">
+                    <div id="chat-container"></div>
+                    <div class="input-group">
+                        <input type="text" id="message-input" class="form-control" placeholder="Type your message...">
+                        <button id="send-btn" class="btn btn-primary">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="conclusion-container" style="display: none;">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Conclude Deal</h2>
+                </div>
+                <div class="card-body">
+                    <p>Enter the agreed price per kilogram:</p>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text">Rs.</span>
+                        <input type="number" id="price-input" class="form-control" placeholder="Price">
+                        <button id="analyze-btn" class="btn btn-primary">Analyze</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="debrief-container" style="display: none;">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Negotiation Debrief</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="h6">Profit Split</h3>
+                    <div class="text-center mb-4">
+                        <img id="profit-chart" class="img-fluid" alt="Profit Split Chart">
+                    </div>
+                    
+                    <h3 class="h6">Deal Summary</h3>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Agreed Price:</strong> <span id="agreed-price"></span> per kg</p>
+                            <p><strong>Total Transaction Value:</strong> <span id="transaction-value"></span></p>
+                            <p><strong>Total Value Created:</strong> <span id="total-value"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Seller Profit:</strong> <span id="seller-profit"></span></p>
+                            <p><strong>Buyer Profit:</strong> <span id="buyer-profit"></span></p>
+                            <p><strong>Advantage To:</strong> <span id="advantage"></span></p>
+                        </div>
+                    </div>
+                    
+                    <h3 class="h6">ZOPA Analysis</h3>
+                    <p>The Zone of Possible Agreement ranges from Rs. <span id="zopa-min"></span> to Rs. <span id="zopa-max"></span>, with a midpoint of Rs. <span id="zopa-mid"></span>.</p>
+                    
+                    <div class="mt-4">
+                        <button id="restart-btn" class="btn btn-primary">Start New Negotiation</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let sessionId = null;
+        
+        // Start negotiation
+        document.getElementById('start-btn').addEventListener('click', async function() {
+            try {
+                const response = await fetch('/api/start_session', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                sessionId = data.session_id;
+                
+                // Show negotiation container
+                document.getElementById('intro-container').style.display = 'none';
+                document.getElementById('negotiation-container').style.display = 'block';
+                
+                // Add initial message
+                addMessage(data.message, 'buyer');
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to start negotiation.');
+            }
+        });
+        
+        // Send message
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+        document.getElementById('message-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        // Conclude deal
+        document.getElementById('conclude-btn').addEventListener('click', function() {
+            document.getElementById('negotiation-container').style.display = 'none';
+            document.getElementById('conclusion-container').style.display = 'block';
+        });
+        
+        // Analyze deal
+        document.getElementById('analyze-btn').addEventListener('click', async function() {
+            const price = document.getElementById('price-input').value;
+            
+            if (!price || price <= 0) {
+                alert('Please enter a valid price.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/debrief', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ price: price })
+                });
+                
+                const data = await response.json();
+                
+                // Display debrief
+                document.getElementById('conclusion-container').style.display = 'none';
+                document.getElementById('debrief-container').style.display = 'block';
+                
+                // Set chart
+                document.getElementById('profit-chart').src = 'data:image/png;base64,' + data.chart;
+                
+                // Fill in data
+                document.getElementById('agreed-price').textContent = 'Rs. ' + price;
+                document.getElementById('transaction-value').textContent = 'Rs. ' + numberWithCommas(price * 1000);
+                document.getElementById('total-value').textContent = 'Rs. ' + numberWithCommas(Math.round(data.debrief.total_value_created));
+                document.getElementById('seller-profit').textContent = 'Rs. ' + numberWithCommas(Math.round(data.debrief.seller.total_profit));
+                document.getElementById('buyer-profit').textContent = 'Rs. ' + numberWithCommas(Math.round(data.debrief.buyer.total_profit));
+                document.getElementById('advantage').textContent = data.debrief.zopa_analysis.better_deal;
+                document.getElementById('zopa-min').textContent = data.debrief.zopa_analysis.zopa_range[0];
+                document.getElementById('zopa-max').textContent = data.debrief.zopa_analysis.zopa_range[1];
+                document.getElementById('zopa-mid').textContent = Math.round(data.debrief.zopa_analysis.zopa_midpoint);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to analyze deal.');
+            }
+        });
+        
+        // Restart
+        document.getElementById('restart-btn').addEventListener('click', function() {
+            sessionId = null;
+            document.getElementById('debrief-container').style.display = 'none';
+            document.getElementById('intro-container').style.display = 'block';
+            document.getElementById('chat-container').innerHTML = '';
+            document.getElementById('message-input').value = '';
+        });
+        
+        // Helper functions
+        async function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message
+            addMessage(message, 'seller');
+            
+            // Clear input
+            messageInput.value = '';
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        message: message
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Add buyer response
+                addMessage(data.message, 'buyer');
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Failed to get response. Please try again.', 'buyer');
+            }
+        }
+        
+        function addMessage(message, role) {
+            const chatContainer = document.getElementById('chat-container');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', role);
+            messageDiv.textContent = message;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        function numberWithCommas(x) {
+            return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+    </script>
+</body>
+</html>
