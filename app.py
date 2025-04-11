@@ -19,29 +19,172 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 # Store active sessions
 sessions = {}
 
-# Functions from your notebook (reuse all your functions here)
 def generate_cinnamon_buyer_prompt():
-    # Same as in your notebook
+    """Generate the system prompt for the Cinnamon Case buyer"""
     prompt = """
-    You are roleplaying as the owner of Offshoot Intermediaries Limited...
+    You are roleplaying as the owner of Offshoot Intermediaries Limited, a family-run enterprise that offers drug formulations and baby food products. You will be negotiating with a salesperson (the human user) who is the owner of Mahek Masala, which has 1,000 kilograms of premium-quality cinnamon powder for sale.
+
+    Here are your key characteristics and background information:
+    - You enjoy a healthy market share in the baby food market with a reputation for prompt payments
+    - Your company's image was tarnished when the government discovered a quality issue with one of your drug formulations
+    - The government is issuing an ordinance mandating high-grade cinnamon in baby foods with a 10% subsidy
+    - The FDA commissioner just agreed to grant you an additional 17% subsidy (total 27%) if you supply baby food to government-run children's homes (which will require 100kg of cinnamon)
+    - You see this as a chance to re-establish your image and reputation with the government
+    - Your alternative supplier offers cinnamon for Rs. 310/kg, but it's likely inferior quality
+    - Your best estimate for high-quality cinnamon is Rs. 380/kg
+    - You would be willing to pay up to Rs. 600/kg to secure this deal as you can still make a profit of Rs. 230/kg
+    - The additional 17% subsidy is NOT public knowledge
+    - Your goal is to get the lowest possible purchase price
+    
+    Follow these behavioral guidelines during negotiation:
+    - Start by introducing yourself and expressing interest in the cinnamon
+    - Don't reveal your maximum price (Rs. 600/kg) under any circumstances
+    - Don't immediately disclose the subsidy information or government mandate
+    - Be concerned about quality given your past issues with the FDA
+    - Emphasize your need for all 1,000kg of premium-quality cinnamon
+    - Use your alternative supplier as leverage to negotiate a better price
+    - Respond to questions about your intended use with vague mentions of your baby food products
+    - Only gradually reveal information as the negotiation progresses
+    - Be willing to agree to a price between Rs. 310-600/kg, but try to get the lowest possible price
+    - Be professional but firm in your negotiation
+    
+    Remember, your goal is to secure the entire 1,000kg lot at the lowest possible price to maximize your profits.
     """
     return prompt
 
 def calculate_profit_split(agreed_price):
-    # Same as in your notebook
-    # ...
+    """Calculate the profit split between buyer and seller based on the agreed price"""
+    # Seller's calculations
+    seller_cost = 360  # Rs. per kg (from case)
+    seller_profit_per_kg = agreed_price - seller_cost
+    seller_total_profit = seller_profit_per_kg * 1000  # 1000 kg total
+    
+    # Buyer's calculations
+    buyer_max_willing = 600  # Rs. per kg (from case)
+    standard_subsidy = 0.10  # 10% subsidy
+    additional_subsidy = 0.17  # Additional 17% subsidy
+    total_subsidy = standard_subsidy + additional_subsidy  # 27% total
+    
+    # Effective cost to buyer after subsidy
+    effective_cost_per_kg = agreed_price * (1 - total_subsidy)
+    
+    # Buyer's profit (given in case as Rs. 230 per kg at Rs. 600 purchase price)
+    buyer_profit_at_max_price = 230  # Rs. per kg if bought at Rs. 600
+    
+    # Adjust buyer profit based on actual price
+    # If paid less than Rs. 600, profit increases by the difference
+    buyer_profit_per_kg = buyer_profit_at_max_price + (buyer_max_willing - agreed_price)
+    buyer_total_profit = buyer_profit_per_kg * 1000  # 1000 kg total
+    
+    # Calculate total value created
+    total_value = seller_total_profit + buyer_total_profit
+    
+    # Calculate % of value captured by each party
+    seller_percent = (seller_total_profit / total_value) * 100
+    buyer_percent = (buyer_total_profit / total_value) * 100
+    
+    # ZOPA Analysis
+    seller_reservation_value = max(360, 381)  # From case: cost or Marex alternative
+    buyer_reservation_value = 855  # From case: maximum buyer would pay to break even with 27% subsidy
+    
+    in_zopa = seller_reservation_value <= agreed_price <= buyer_reservation_value
+    
+    # Calculate distance from mid-point of ZOPA
+    zopa_midpoint = (seller_reservation_value + buyer_reservation_value) / 2
+    distance_from_midpoint = abs(agreed_price - zopa_midpoint)
+    
+    # Calculate which party got the better deal relative to the ZOPA midpoint
+    if agreed_price < zopa_midpoint:
+        better_deal = "Buyer"
+        advantage_percent = ((zopa_midpoint - agreed_price) / (zopa_midpoint - seller_reservation_value)) * 100
+    else:
+        better_deal = "Seller"
+        advantage_percent = ((agreed_price - zopa_midpoint) / (buyer_reservation_value - zopa_midpoint)) * 100
+    
+    return {
+        "agreed_price": agreed_price,
+        "seller": {
+            "cost_per_kg": seller_cost,
+            "profit_per_kg": seller_profit_per_kg,
+            "total_profit": seller_total_profit,
+            "percent_of_value": seller_percent,
+            "reservation_value": seller_reservation_value
+        },
+        "buyer": {
+            "gross_price_per_kg": agreed_price,
+            "effective_cost_per_kg": effective_cost_per_kg,
+            "subsidy_benefit_per_kg": agreed_price * total_subsidy,
+            "profit_per_kg": buyer_profit_per_kg,
+            "total_profit": buyer_total_profit,
+            "percent_of_value": buyer_percent,
+            "reservation_value": buyer_reservation_value
+        },
+        "zopa_analysis": {
+            "in_zopa": in_zopa,
+            "zopa_range": (seller_reservation_value, buyer_reservation_value),
+            "zopa_midpoint": zopa_midpoint,
+            "distance_from_midpoint": distance_from_midpoint,
+            "better_deal": better_deal,
+            "advantage_percent": advantage_percent
+        },
+        "total_value_created": total_value
+    }
 
 def create_profit_split_chart(debrief_data):
-    # Modified to return base64 image for web
+    """Create and display a visualization of the profit split between buyer and seller"""
     # Data preparation
     seller_profit = debrief_data["seller"]["total_profit"]
     buyer_profit = debrief_data["buyer"]["total_profit"]
+    total_value = debrief_data["total_value_created"]
     
     # Create figure and axis
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    # Rest same as notebook
-    # ...
+    # Value share bar
+    labels = ['Seller', 'Buyer']
+    values = [seller_profit, buyer_profit]
+    percentages = [seller_profit/total_value*100, buyer_profit/total_value*100]
+    
+    x = np.arange(len(labels))
+    width = 0.5
+    
+    rects = ax.bar(x, values, width, color=['#5DA5DA', '#FAA43A'])
+    
+    # Add labels and title
+    ax.set_ylabel('Profit (Rs.)')
+    ax.set_title('Profit Split Analysis')
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    
+    # Add value annotations
+    for i, rect in enumerate(rects):
+        height = rect.get_height()
+        ax.annotate(f'Rs. {int(height):,}\n({percentages[i]:.1f}%)',
+                   xy=(rect.get_x() + rect.get_width()/2, height),
+                   xytext=(0, 3),
+                   textcoords="offset points",
+                   ha='center', va='bottom')
+    
+    # Add agreed price annotation
+    agreed_price = debrief_data["agreed_price"]
+    ax.annotate(f'Agreed Price: Rs. {agreed_price}/kg',
+               xy=(0.5, 0.95),
+               xycoords='figure fraction',
+               ha='center',
+               fontsize=12,
+               bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8))
+    
+    # Add ZOPA annotation
+    zopa_range = debrief_data["zopa_analysis"]["zopa_range"]
+    zopa_midpoint = debrief_data["zopa_analysis"]["zopa_midpoint"]
+    ax.annotate(f'ZOPA Range: Rs. {zopa_range[0]} - Rs. {zopa_range[1]}\nMidpoint: Rs. {zopa_midpoint:.0f}',
+               xy=(0.5, 0.87),
+               xycoords='figure fraction',
+               ha='center',
+               fontsize=10,
+               bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8))
+    
+    plt.tight_layout()
     
     # Convert plot to base64 image
     buf = BytesIO()
