@@ -11,9 +11,7 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 def get_status():
     try:
         # Initialize the Anthropic client
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY,
-                                    proxies=None  # Explicitly disable proxies
-)
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         
         # Try a simple operation to verify the client works
         models = client.models.list()
