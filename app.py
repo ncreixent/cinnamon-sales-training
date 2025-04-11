@@ -8,16 +8,13 @@ import numpy as np
 import base64
 from io import BytesIO
 
-app = Flask(__name__)
+app = Flask(_# Get API key from environment variable only
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
-# Get API key from environment variable or set it directly
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPI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# Replace the client initialization part (around line 17) with:
-try:
-    # Try modern client initialization
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-except TypeError:
-    # Fall back to older client initialization style
-    client = anthropic.Client(api_key=ANTHROPIC_API_KEY)H
+# Add a check to make sure the API key is present
+if not ANTHROPIC_API_KEY:
+    raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
+    
 ROPIC_API_KEY)
 
 # Store active sessions
